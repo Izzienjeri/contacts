@@ -1,6 +1,6 @@
 from flask import request
 from flask_restful import Resource
-from models import db, Contact, PhoneNumber
+from models import db, Contact, PhoneNumber, SocialPlatform, SocialProfile, Tag
 
 class ContactListResource(Resource):
     def get(self):
@@ -17,6 +17,8 @@ class ContactListResource(Resource):
     def post(self):
         data = request.get_json()
         phones = data.get('phone_numbers', [])
+        profiles = data.get('social_profiles', [])  # List of { platform, username }
+        tags = data.get('tags', [])  # List of tag names
 
         contact = Contact(
             name=data['name'],
@@ -24,10 +26,23 @@ class ContactListResource(Resource):
             is_favorite=data.get('is_favorite', False)
         )
         db.session.add(contact)
-        db.session.flush() 
+        db.session.flush()  # Get contact.id
 
         for phone in phones:
             db.session.add(PhoneNumber(number=phone, contact_id=contact.id))
+
+        for profile in profiles:
+            platform_name = profile['platform']
+            platform = SocialPlatform.query.filter_by(name=platform_name).first()
+            if platform:
+                db.session.add(SocialProfile(
+                    username=profile['username'],
+                    contact_id=contact.id,
+                    platform_id=platform.id
+                ))
+
+        for tag_name in tags:
+            db.session.add(Tag(name=tag_name, contact_id=contact.id))
 
         db.session.commit()
         return {
@@ -43,9 +58,7 @@ class ContactResource(Resource):
             "contact": contact.to_dict()
         }, 200
 
-    # update a specific contact
     def put(self, id):
-        
         contact = Contact.query.get_or_404(id)
         data = request.get_json()
 
@@ -53,10 +66,29 @@ class ContactResource(Resource):
         contact.email = data.get('email', contact.email)
         contact.is_favorite = data.get('is_favorite', contact.is_favorite)
 
+        # Update phone numbers
         if 'phone_numbers' in data:
             PhoneNumber.query.filter_by(contact_id=contact.id).delete()
             for phone in data['phone_numbers']:
                 db.session.add(PhoneNumber(number=phone, contact_id=contact.id))
+
+        # Update social profiles
+        if 'social_profiles' in data:
+            SocialProfile.query.filter_by(contact_id=contact.id).delete()
+            for profile in data['social_profiles']:
+                platform = SocialPlatform.query.filter_by(name=profile['platform']).first()
+                if platform:
+                    db.session.add(SocialProfile(
+                        username=profile['username'],
+                        contact_id=contact.id,
+                        platform_id=platform.id
+                    ))
+
+        # Update tags
+        if 'tags' in data:
+            Tag.query.filter_by(contact_id=contact.id).delete()
+            for tag_name in data['tags']:
+                db.session.add(Tag(name=tag_name, contact_id=contact.id))
 
         db.session.commit()
         return {
@@ -71,5 +103,3 @@ class ContactResource(Resource):
         return {
             "message": "Contact deleted successfully"
         }, 200
-
-
