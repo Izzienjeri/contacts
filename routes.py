@@ -18,7 +18,7 @@ class ContactListResource(Resource):
         data = request.get_json()
         phones = data.get('phone_numbers', [])
         profiles = data.get('social_profiles', [])  # List of { platform, username }
-        tags = data.get('tags', [])  # List of tag names
+        tags = data.get('tags', [])  
 
         contact = Contact(
             name=data['name'],
